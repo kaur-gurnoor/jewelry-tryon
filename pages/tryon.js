@@ -1,3 +1,7 @@
 export default function TryOn() {
-  return <div>Try-On Feature Coming Soon</div>;
+  return (
+    <div>
+      <h1>Try-On Feature Coming Soon</h1>
+    </div>
+  );
 }
