@@ -22,7 +22,7 @@ export default function TryOnCamera({ earringImage, necklaceImage }) {
   const earringImgRef = useRef(null);
   const necklaceImgRef = useRef(null);
 
-  // Preload images once
+  // Preload images
   useEffect(() => {
     const earringImg = new Image();
     earringImg.src = earringImage;
@@ -35,7 +35,6 @@ export default function TryOnCamera({ earringImage, necklaceImage }) {
 
   useEffect(() => {
     async function setupFaceMesh() {
-      // Load MediaPipe scripts dynamically
       await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js');
       await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
 
@@ -47,29 +46,36 @@ export default function TryOnCamera({ earringImage, necklaceImage }) {
         return;
       }
 
-      const faceMeshInstance = new FaceMesh({
+      const faceMesh = new FaceMesh({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
       });
 
-      faceMeshInstance.setOptions({
+      faceMesh.setOptions({
         maxNumFaces: 1,
         refineLandmarks: true,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5,
       });
 
-      faceMeshInstance.onResults((results) => {
+      faceMesh.onResults((results) => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Draw mirrored image manually
         if (results.image) {
+          ctx.save();
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
           ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
         }
 
-        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        if (results.multiFaceLandmarks?.length) {
           const landmarks = results.multiFaceLandmarks[0];
+
+          const flipX = (x) => 1 - x;
+
           const leftEar = landmarks[234];
           const rightEar = landmarks[454];
           const chin = landmarks[152];
@@ -77,34 +83,32 @@ export default function TryOnCamera({ earringImage, necklaceImage }) {
           const earringImg = earringImgRef.current;
           const necklaceImg = necklaceImgRef.current;
 
-          // Draw earrings if image loaded
-          if (earringImg && earringImg.complete) {
-            const size = 40;
+          const size = 40;
+          if (earringImg?.complete) {
             ctx.drawImage(
               earringImg,
-              leftEar.x * canvas.width - size / 2,
+              flipX(leftEar.x) * canvas.width - size / 2,
               leftEar.y * canvas.height - size / 2 + 30,
               size,
               size
             );
             ctx.drawImage(
               earringImg,
-              rightEar.x * canvas.width - size / 2 + 5,
+              flipX(rightEar.x) * canvas.width - size / 2,
               rightEar.y * canvas.height - size / 2 + 30,
               size,
               size
             );
           }
 
-          // Draw necklace if image loaded
-          if (necklaceImg && necklaceImg.complete) {
-            const size = 150;
+          if (necklaceImg?.complete) {
+            const neckSize = 140;
             ctx.drawImage(
               necklaceImg,
-              chin.x * canvas.width - size / 2,
+              flipX(chin.x) * canvas.width - neckSize / 2,
               chin.y * canvas.height,
-              size,
-              size / 2
+              neckSize,
+              neckSize / 2
             );
           }
         }
@@ -112,7 +116,7 @@ export default function TryOnCamera({ earringImage, necklaceImage }) {
 
       const camera = new Camera(videoRef.current, {
         onFrame: async () => {
-          await faceMeshInstance.send({ image: videoRef.current });
+          await faceMesh.send({ image: videoRef.current });
         },
         width: 640,
         height: 480,
@@ -126,12 +130,21 @@ export default function TryOnCamera({ earringImage, necklaceImage }) {
 
   return (
     <div style={{ position: 'relative', width: '640px', margin: 'auto' }}>
-      <video ref={videoRef} style={{ display: 'none' }} playsInline />
+      <video
+        ref={videoRef}
+        style={{
+          display: 'none',
+        }}
+        playsInline
+      />
       <canvas
         ref={canvasRef}
         width="640"
         height="480"
-        style={{ border: '1px solid #ccc', borderRadius: '8px' }}
+        style={{
+          border: '1px solid #ccc',
+          borderRadius: '8px',
+        }}
       />
     </div>
   );
